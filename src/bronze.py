@@ -44,9 +44,6 @@ def main():
 
     spark = build_spark()
     try:
-        # Con esquema explicito, Spark asigna las columnas por posicion.
-        # Se compara el encabezado del archivo con el esquema para detectar
-        # cualquier cambio de orden antes de leer los datos.
         header = spark.read.option("header", True).csv(RAW_CSV.as_posix()).columns
         expected = [field.name for field in SCHEMA.fields]
         if header != expected:
