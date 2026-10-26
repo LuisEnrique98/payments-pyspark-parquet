@@ -1,12 +1,13 @@
 from pathlib import Path
 
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
 
 SILVER_DIR = Path("data/silver")
 GOLD_DIR = Path("data/gold")
 EXPECTED_ROWS = 6362620
 EXPECTED_FRAUD = 8213
+EXPECTED_MISMATCH = 3777817
 
 def build_spark():
     return (
@@ -58,11 +59,28 @@ def fraud_by_type(silver: DataFrame) -> DataFrame:
         .orderBy("tx_type")
     )
 
+def balance_mismatch_summary(silver: DataFrame) -> DataFrame:
+    """Filas que cuadran y que no cuadran por tipo, con la causa y su porcentaje."""
+    by_type = Window.partitionBy("tx_type")
+
+    return (
+        silver
+        .withColumn("cause", F.coalesce(F.col("orig_mismatch_cause"), F.lit("matches")))
+        .groupBy("tx_type", "cause")
+        .agg(F.count("*").alias("tx_count"))
+        .withColumn(
+            "pct_of_type",
+            F.round(100 * F.col("tx_count") / F.sum("tx_count").over(by_type), 2),
+        )
+        .orderBy("tx_type", "cause")
+    )
+
 # Cada tabla de la capa oro es una funcion que recibe plata y devuelve un DataFrame.
 # Para agregar una tabla nueva: escribir su funcion y anadirla aqui.
 TABLES = {
     "daily_volume_by_type": daily_volume_by_type,
     "fraud_by_type": fraud_by_type,
+    "balance_mismatch_summary": balance_mismatch_summary,
 }
 
 
@@ -86,7 +104,7 @@ def main():
             table = build(silver)
             n = write_table(table, name)
             print(f"{name}: {n} filas")
-            table.show(10, truncate=False)
+            table.show(18, truncate=False)
 
         # Comprobacion: las transacciones de la tabla diaria suman el total de plata
         daily = spark.read.parquet((GOLD_DIR / "daily_volume_by_type").as_posix())
@@ -98,6 +116,13 @@ def main():
         fraud_total = fraud.agg(F.sum("fraud_count")).first()[0]
         if fraud_total != EXPECTED_FRAUD:
             raise ValueError(f"Hay {fraud_total} fraudes y se esperaban {EXPECTED_FRAUD}")
+
+        mismatch = spark.read.parquet((GOLD_DIR / "balance_mismatch_summary").as_posix())
+        mismatch_total = (
+            mismatch.filter(F.col("cause") != "matches").agg(F.sum("tx_count")).first()[0]
+        )
+        if mismatch_total != EXPECTED_MISMATCH:
+            raise ValueError(f"Hay {mismatch_total} descuadres y se esperaban {EXPECTED_MISMATCH}")
 
         print("ORO OK")
     finally:
