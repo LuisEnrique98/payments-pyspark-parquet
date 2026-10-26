@@ -6,7 +6,7 @@ from pyspark.sql import functions as F
 SILVER_DIR = Path("data/silver")
 GOLD_DIR = Path("data/gold")
 EXPECTED_ROWS = 6362620
-
+EXPECTED_FRAUD = 8213
 
 def build_spark():
     return (
@@ -40,11 +40,29 @@ def daily_volume_by_type(silver: DataFrame) -> DataFrame:
         .orderBy("tx_day", "tx_type")
     )
 
+def fraud_by_type(silver: DataFrame) -> DataFrame:
+    """Transacciones, fraude y tasa de fraude por tipo."""
+    return (
+        silver
+        .groupBy("tx_type")
+        .agg(
+            F.count("*").alias("tx_count"),
+            F.sum(F.col("is_fraud").cast("int")).alias("fraud_count"),
+            F.sum((F.col("is_fraud") & F.col("is_flagged_fraud")).cast("int")).alias("fraud_flagged_count"),
+            F.sum(F.col("is_flagged_fraud").cast("int")).alias("flagged_count"),
+            F.round(F.sum(F.when(F.col("is_fraud"), F.col("amount")).otherwise(0.0)), 2)
+                .cast("decimal(20,2)").alias("fraud_amount"),
+            F.round(F.sum("amount"), 2).cast("decimal(20,2)").alias("total_amount"),
+        )
+        .withColumn("fraud_rate_pct", F.round(100 * F.col("fraud_count") / F.col("tx_count"), 4))
+        .orderBy("tx_type")
+    )
 
 # Cada tabla de la capa oro es una funcion que recibe plata y devuelve un DataFrame.
 # Para agregar una tabla nueva: escribir su funcion y anadirla aqui.
 TABLES = {
     "daily_volume_by_type": daily_volume_by_type,
+    "fraud_by_type": fraud_by_type,
 }
 
 
@@ -75,6 +93,11 @@ def main():
         total = daily.agg(F.sum("tx_count")).first()[0]
         if total != EXPECTED_ROWS:
             raise ValueError(f"Las transacciones suman {total} y se esperaban {EXPECTED_ROWS}")
+
+        fraud = spark.read.parquet((GOLD_DIR / "fraud_by_type").as_posix())
+        fraud_total = fraud.agg(F.sum("fraud_count")).first()[0]
+        if fraud_total != EXPECTED_FRAUD:
+            raise ValueError(f"Hay {fraud_total} fraudes y se esperaban {EXPECTED_FRAUD}")
 
         print("ORO OK")
     finally:
