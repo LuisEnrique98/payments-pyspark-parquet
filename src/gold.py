@@ -104,7 +104,7 @@ def main():
             table = build(silver)
             n = write_table(table, name)
             print(f"{name}: {n} filas")
-            table.show(18, truncate=False)
+            table.show(10, truncate=False)
 
         # Comprobacion: las transacciones de la tabla diaria suman el total de plata
         daily = spark.read.parquet((GOLD_DIR / "daily_volume_by_type").as_posix())
