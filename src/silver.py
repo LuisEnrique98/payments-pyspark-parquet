@@ -49,13 +49,13 @@ def transform(bronze: DataFrame) -> DataFrame:
         
         .withColumn(
             "orig_delta_matches_amount",
-            F.abs(F.abs(orig_delta) - amount) <= TOLERANCE,
+            F.round(F.abs(F.abs(orig_delta) - amount),2) <= TOLERANCE,
         )
         
         .withColumn(
             "dest_delta_matches_amount",
             F.when(F.col("dest_is_merchant"), F.lit(None).cast("boolean"))
-            .otherwise(F.abs(F.abs(dest_delta) - amount) <= TOLERANCE),
+            .otherwise(F.round(F.abs(F.abs(dest_delta) - amount),2) <= TOLERANCE),
         )
         .withColumn(
             "orig_mismatch_cause",
