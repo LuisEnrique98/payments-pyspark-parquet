@@ -41,7 +41,7 @@ def transform(bronze: DataFrame) -> DataFrame:
             F.col("isFraud").cast("boolean").alias("is_fraud"),
             F.col("isFlaggedFraud").cast("boolean").alias("is_flagged_fraud"),
         )
-        # step es un contador de horas: 1 a 744 (30 dias)
+        # step es un contador de horas: 1 a 743 (31 dias, el último parcial)
         .withColumn("tx_day", (F.floor((F.col("step") - 1) / 24) + 1).cast("int"))
         .withColumn("tx_hour", ((F.col("step") - 1) % 24).cast("int"))
         # los destinos que empiezan con M son comercios
@@ -49,13 +49,13 @@ def transform(bronze: DataFrame) -> DataFrame:
         
         .withColumn(
             "orig_delta_matches_amount",
-            F.abs(F.abs(orig_delta) - amount) <= TOLERANCE,
+            F.round(F.abs(F.abs(orig_delta) - amount),2) <= TOLERANCE,
         )
         
         .withColumn(
             "dest_delta_matches_amount",
             F.when(F.col("dest_is_merchant"), F.lit(None).cast("boolean"))
-            .otherwise(F.abs(F.abs(dest_delta) - amount) <= TOLERANCE),
+            .otherwise(F.round(F.abs(F.abs(dest_delta) - amount),2) <= TOLERANCE),
         )
         .withColumn(
             "orig_mismatch_cause",

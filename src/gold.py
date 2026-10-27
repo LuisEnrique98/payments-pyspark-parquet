@@ -7,7 +7,7 @@ SILVER_DIR = Path("data/silver")
 GOLD_DIR = Path("data/gold")
 EXPECTED_ROWS = 6362620
 EXPECTED_FRAUD = 8213
-EXPECTED_MISMATCH = 3777817
+EXPECTED_MISMATCH = 3601595
 
 def build_spark():
     return (
