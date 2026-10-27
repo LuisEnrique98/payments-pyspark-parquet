@@ -41,7 +41,7 @@ def transform(bronze: DataFrame) -> DataFrame:
             F.col("isFraud").cast("boolean").alias("is_fraud"),
             F.col("isFlaggedFraud").cast("boolean").alias("is_flagged_fraud"),
         )
-        # step es un contador de horas: 1 a 744 (30 dias)
+        # step es un contador de horas: 1 a 743 (31 dias, el último parcial)
         .withColumn("tx_day", (F.floor((F.col("step") - 1) / 24) + 1).cast("int"))
         .withColumn("tx_hour", ((F.col("step") - 1) % 24).cast("int"))
         # los destinos que empiezan con M son comercios
